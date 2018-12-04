@@ -17,7 +17,7 @@ void clock_Initalize(void){
     CSCTL0 = 0xA500;                // CSKEY
     CSCTL1 = DCOFSEL_6;   // DCO frequency = 8MHz
     CSCTL0 = 0xA500;                // CSKEY
-    CSCTL2 = SELA_0 | SELS_3 | SELM_0; // ACLK = LF, SMCLK = DCO, MCLK = LF
+    CSCTL2 = SELA_0 | SELS_3 | SELM_3; // ACLK = LF, SMCLK = DCO, MCLK = SMCLK
     CSCTL0 = 0xA500;                // CSKEY
     CSCTL3 = DIVA__1 | DIVS__1 | DIVM__1; // ACLK/1 . SMCLK/1, MCLK/1;
 }

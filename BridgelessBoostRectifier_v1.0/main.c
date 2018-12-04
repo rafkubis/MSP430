@@ -1,6 +1,7 @@
 #include <msp430.h> 
 #include "clock.h"
 #include "pwm.h"
+#include "usart.h"
 #include "bridge_boost_rect.h"
 
 /**
@@ -18,9 +19,11 @@ void main(void)
 	 *      P2.6 -> input pull down
 	 *      P2.6 <-> P2.7
 	 */
-	P2DIR &= ~BIT6;
-	P2REN |= BIT6;
-	P2OUT &= ~BIT6;
+//	P2DIR &= ~BIT6;
+//	P2REN |= BIT6;
+//	P2OUT &= ~BIT6;
+
+//	usart_init();
 
 
 
@@ -48,22 +51,27 @@ void main(void)
     P9DIR |= BIT7;
     P9OUT |= BIT7;
 
-    boostRect[0].T1_pwm_register = &TB0CCR6;
+    boostRect[0].T1_pwm_register = &TB0CCR6;        // 2
     boostRect[0].T2_pwm_register = &TB0CCR3;
-    boostRect[1].T1_pwm_register = &TB0CCR2;
+    boostRect[1].T1_pwm_register = &TB0CCR2;        // 1
     boostRect[1].T2_pwm_register = &TB0CCR5;
+ //   boostRect[0].pwm_register = &TB0CCR0;
+  //  boostRect[1].pwm_register = &TB0CCR0;
     boostRect[0].pwm_max = PWM_DIV;
     boostRect[1].pwm_max = PWM_DIV;
-    boostRect[0].pwm = 10;
-    boostRect[1].pwm = 10;
+    boostRect[0].pwm = 35;
+    boostRect[1].pwm = 50;
+//    BoostRect_ChangePwmPrams(boostRect[0], PWM_DIV)
 //    BoostRect_PositiveSign(&boostRect[0]);
 //    BoostRect_PositiveSign(&boostRect[1]);
 	__enable_interrupt();
+
 	while(1){
 
 	}
 }
 /*
+ *      BOOST 2
  *      External IO interrupt form PORT2
  *
  */
@@ -80,7 +88,12 @@ __interrupt void Port2_interrupt(void){
     }
     P2IV;
 }
+
+
+
+
 /*
+ *      BOOST 1
  *      External IO interrupt from PORT3
  *      BoostRect 0 sign
  */
@@ -89,14 +102,26 @@ __interrupt void Port2_interrupt(void){
 #pragma vector=PORT3_VECTOR
 __interrupt void Port3_interrupt(void){
     if(P3IES & BIT2) {      // check if rising edge is selected
-        P3IES ^= BIT2;      //  change edge
+        P3IES &= ~BIT2;      //  change edge
         P1OUT |= BIT0;
         BoostRect_PositiveSign(&boostRect[0]);
     } else{
-        P3IES ^= BIT2;      //  change edge
+        P3IES |= BIT2;      //  change edge
         P1OUT &= ~BIT0;
         BoostRect_NegativeSign(&boostRect[0]);
     }
     P3IV;
 
 }
+/*
+#pragma vector=USCI_A1_VECTOR
+__interrupt void USART1_interrupt(void){
+   if(UCA1IFG & UCTXIFG){
+       usart_tx_interrupt_function();
+   }
+   if(UCA1IFG & UCRXIFG){
+       usart_rx_interrupt_function();
+   }
+
+}
+*/
