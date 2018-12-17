@@ -82,8 +82,9 @@ unsigned int usart_rx_get_line(char *buffer){
             strncpy(buffer, rx_buffer, end_of_line - rx_buffer);
             *(buffer + (end_of_line - rx_buffer)) = '\0';
             if((end_of_line - rx_buffer + 1) == rx_cnt){        // to debug when RX_END_OF_line is "\l\n"
-                rx_cnt = 0;
                 rx_buffer[0] = '\0';
+                rx_cnt = 0;
+                end_of_line = NULL;
             }
             return 1;
         }
@@ -98,8 +99,8 @@ unsigned int usart_rx_get_line(char *buffer){
             *(buffer + (new_end_of_line - end_of_line)) = '\0';
             end_of_line = new_end_of_line;
             if((end_of_line - rx_buffer + 1) == rx_cnt){        // to debug when RX_END_OF_line is "\l\n"
-                rx_cnt = 0;
                 rx_buffer[0] = '\0';
+                rx_cnt = 0;
             }
             return 1;
         }

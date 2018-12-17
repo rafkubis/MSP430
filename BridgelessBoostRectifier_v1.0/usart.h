@@ -18,7 +18,7 @@ void usart_put_string(char *str);
 inline void usart_tx_interrupt_function(void);
 inline void usart_rx_interrupt_function(void);
 unsigned int usart_tx_available(void);
-unsigned int sart_rx_get_line(char *buffer);
+unsigned int usart_rx_get_line(char *buffer);
 
 void __enable_tx_interrupt(void);
 void __usart_gpio_init(void);
