@@ -5,6 +5,7 @@
 #include "pwm.h"
 #include "usart.h"
 #include "bridge_boost_rect.h"
+#include "adc.h"
 
 /**
  * main.c
@@ -30,6 +31,7 @@ void main(void)
 
 	usart_init();
 
+	adc_Initalize();
 
 
 	pwm_Initalize();
@@ -70,13 +72,16 @@ void main(void)
 //    BoostRect_ChangePwmPrams(boostRect[0], PWM_DIV)
 //    BoostRect_PositiveSign(&boostRect[0]);
 //    BoostRect_PositiveSign(&boostRect[1]);
+    adc_startConversion();
 	__enable_interrupt();
+	//__low_power_mode_4();
     volatile char data_buffer[128];
     volatile unsigned int pwm, pwm_max, boost_num;
 	while(1){
 	    if(usart_rx_get_line(data_buffer) == 1){
 	        boost_num = decodeData(data_buffer, &pwm, &pwm_max);
 	        BoostRect_ChangePwmParams(&boostRect[boost_num-1], pwm, pwm_max);
+	        __low_power_mode_4();
 	    }
 
 
@@ -97,7 +102,6 @@ __interrupt void Port2_interrupt(void){
     } else{
         P2IES |= BIT0;      //  change edge
         P9OUT |= BIT7;
-
         BoostRect_PositiveSign(&boostRect[1]);
     }
     P2IV;
@@ -136,7 +140,7 @@ __interrupt void USART1_interrupt(void){
    if(UCA1IFG & UCRXIFG){
        usart_rx_interrupt_function();
    }
-
+   __low_power_mode_off_on_exit();
 }
 
 
