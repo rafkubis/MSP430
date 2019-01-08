@@ -31,3 +31,15 @@ inline void BoostRect_ChangePwmParams(BoostRect *boostRect,unsigned int pwm, uns
     }
 
 }
+
+void BoostRect_Regulator(BoostRect *boostRect){
+    int error = boostRect->oV_setpoint - boostRect->oV_actual;
+    int pwm_tmp = Kp * error;
+    pwm_tmp += boostRect->pwm;
+    if(pwm_tmp > BOOSTRECT_PWM_MAX_DUTY){
+        pwm_tmp = BOOSTRECT_PWM_MAX_DUTY;
+    } else if(pwm_tmp < 0){
+        pwm_tmp = 0;
+    }
+    BoostRect_ChangePwmParams(boostRect, pwm_tmp, BOOSTRECT_PWM_MAX);
+}

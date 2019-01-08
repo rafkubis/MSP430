@@ -1,11 +1,10 @@
 #include <msp430.h> 
 #include <string.h>
 #include <stdlib.h>
-#include "clock.h"
-#include "pwm.h"
+#include "periph.h"
 #include "usart.h"
 #include "bridge_boost_rect.h"
-#include "adc.h"
+
 
 /**
  * main.c
@@ -64,8 +63,8 @@ void main(void)
     boostRect[1].T2_pwm_register = &TB0CCR5;
     boostRect[0].pwm_register = &TB0CCR0;
     boostRect[1].pwm_register = &TB0CCR0;
-    boostRect[0].pwm_max = PWM_DIV;
-    boostRect[1].pwm_max = PWM_DIV;
+    boostRect[0].pwm_max = BOOSTRECT_PWM_MAX;
+    boostRect[1].pwm_max = BOOSTRECT_PWM_MAX;
     boostRect[0].pwm = 10;
     boostRect[1].pwm = 10;
 
