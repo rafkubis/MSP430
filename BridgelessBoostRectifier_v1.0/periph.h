@@ -17,5 +17,6 @@ void adc_startConversion(void);
 
 void pwm_Initalize(void);
 
+void timerA_Initalize(void);
 
 #endif /* PERIPH_H_ */

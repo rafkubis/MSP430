@@ -5,10 +5,13 @@
  *      Author: rafal
  */
 
+#include "periph.h"
+
+
     /*
      *      DCO 8MHz
-     *      DCO -> SMCLK
-     *      LF  -> MCLK, ACLK
+     *      DCO -> SMCLK, MCLK
+     *      LF  -> ACLK
      */
 void clock_Initalize(void){
     PJSEL0 |= BIT4 | BIT5;      // LF enable -- 32.768kHz
@@ -38,6 +41,7 @@ void adc_Initalize(void){
     ADC12MCTL0 |= ADC12INCH_6;
     ADC12MCTL1 |= ADC12INCH_4 | ADC12EOS;
     ADC12CTL3 |= ADC12CSTARTADD_0;              // start address
+    ADC12IER0 |= ADC12IE1;
 
 }
 
@@ -79,7 +83,7 @@ void pwm_Initalize(void){
      *      TIMER B configuration
      */
     TB0CTL = TBSSEL__SMCLK | ID__1 | MC__UP;    // clock SMCL, clock/1, up to mode
-    TB0CCR0 = PWM_DIV;
+    TB0CCR0 = 0xffff;
     TB0CCTL5 |= OUTMOD_7;
     TB0CCTL6 |= OUTMOD_7;
     TB0CCTL3 |= OUTMOD_7;
@@ -87,5 +91,15 @@ void pwm_Initalize(void){
 
 
 }
+
+void timerA_Initalize(void){
+    /*  ACLK / 1 , up to TA0CCR0 mode, interrupt enable
+     *  clk = 32.768kHz
+     *  20 Hz - interrupt
+     */
+    TA0CTL |= TASSEL__ACLK | ID__1 | MC_1 | TAIE;
+    TA0CCR0 = 820;
+}
+
 
 
