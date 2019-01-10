@@ -3,16 +3,24 @@
 #include <stdlib.h>
 #include "periph.h"
 #include "usart.h"
-#include "bridge_boost_rect.h"
+#include "bridge_boost.h"
 
 
 /**
  * main.c
  */
+#define REGULATOR 1
+
+#define BOOST1_KP   6.5     *256
+#define BOOST1_KI   0.9     *256
+
+
 int itoa(int value, char *sp, int radix);
 unsigned int decodeData(char *data, unsigned int *pwm, unsigned int *pwm_max);
 
 BoostRect boostRect[2];
+volatile unsigned int adc_data[2];
+volatile unsigned int adc_new_data;
 
 void main(void)
 {
@@ -30,9 +38,9 @@ void main(void)
 
 	usart_init();
 
+	adc_new_data = 0;
 	adc_Initalize();
-
-
+	timerA_Initalize();
 	pwm_Initalize();
 	/*
 	 *      External IO interrupt config
@@ -63,17 +71,21 @@ void main(void)
     boostRect[1].T2_pwm_register = &TB0CCR5;
     boostRect[0].pwm_register = &TB0CCR0;
     boostRect[1].pwm_register = &TB0CCR0;
+    *(boostRect[0].pwm_register) = BOOSTRECT_PWM_MAX;
     boostRect[0].pwm_max = BOOSTRECT_PWM_MAX;
     boostRect[1].pwm_max = BOOSTRECT_PWM_MAX;
     boostRect[0].pwm = 10;
     boostRect[1].pwm = 10;
 
+    boostRect[0].regulator_Kp = BOOST1_KP;
+    boostRect[0].regulator_Ki = BOOST1_KI;
+    boostRect[0].oV_setpoint = 600;
 //    BoostRect_ChangePwmPrams(boostRect[0], PWM_DIV)
 //    BoostRect_PositiveSign(&boostRect[0]);
 //    BoostRect_PositiveSign(&boostRect[1]);
-    adc_startConversion();
+  //  adc_startConversion();
 	__enable_interrupt();
-	//__low_power_mode_4();
+	__low_power_mode_4();
     volatile char data_buffer[128];
     volatile unsigned int pwm, pwm_max, boost_num;
 	while(1){
@@ -83,10 +95,33 @@ void main(void)
 	        __low_power_mode_4();
 	    }
 
+	    if(adc_new_data == 1){
+	        adc_new_data = 0;
+	        BoostRect_ChangePwmParams(&boostRect[0], BoostRect_Regulator(&boostRect[0]), BOOSTRECT_PWM_MAX);
+	    }
+
 
 
 	}
 }
+/*
+ *      ADC Start Conversion Interrupt
+ *      20 Hz
+ */
+#pragma vector=TIMER0_A1_VECTOR
+__interrupt void TimerA0_interrupt(void){
+    adc_startConversion();
+    P9OUT ^= BIT7;
+    TA0IV;
+}
+#pragma vector=ADC12_VECTOR
+__interrupt void ADC_interrupt(void){
+    boostRect[0].oV_actual = ADC12MEM0;
+    adc_data[1] = ADC12MEM1;
+    adc_new_data = 1;
+    __low_power_mode_off_on_exit();
+}
+
 /*
  *      BOOST 2
  *      External IO interrupt form PORT2
@@ -96,11 +131,11 @@ void main(void)
 __interrupt void Port2_interrupt(void){
     if(P2IES & BIT0) {      // check if falling edge is selected
         P2IES &= ~BIT0;      //  change edge
-        P9OUT &= ~BIT7;
+     //   P9OUT &= ~BIT7;
         BoostRect_NegativeSign(&boostRect[1]);
     } else{
         P2IES |= BIT0;      //  change edge
-        P9OUT |= BIT7;
+    //    P9OUT |= BIT7;
         BoostRect_PositiveSign(&boostRect[1]);
     }
     P2IV;
