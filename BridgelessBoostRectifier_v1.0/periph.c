@@ -7,7 +7,6 @@
 
 #include "periph.h"
 
-
     /*
      *      DCO 8MHz
      *      DCO -> SMCLK, MCLK
@@ -34,14 +33,15 @@ void adc_Initalize(void){
 
     /*
      *      ADC config
+     *      12 bit, ref 3.3V
      */
     ADC12CTL0 &= ~ADC12ENC;                     // disable conversion
-    ADC12CTL0 |= ADC12MSC | ADC12ON;            // auto trigger , adc on
+    ADC12CTL0 |= ADC12MSC | ADC12ON | ADC12SHT0_10;            // auto trigger , adc on, 512 clk sampling
     ADC12CTL1 |= ADC12SSEL_3 | ADC12CONSEQ_1 | ADC12SHP;    // SMCLK, sequence
-    ADC12MCTL0 |= ADC12INCH_6;
-    ADC12MCTL1 |= ADC12INCH_4 | ADC12EOS;
+    ADC12MCTL0 |= ADC12INCH_6;                  // ch 6
+    ADC12MCTL1 |= ADC12INCH_4 | ADC12EOS;       // ch 4, end of sequence
     ADC12CTL3 |= ADC12CSTARTADD_0;              // start address
-    ADC12IER0 |= ADC12IE1;
+    ADC12IER0 |= ADC12IE1;                      // mem1 interrupt enable
 
 }
 
@@ -50,18 +50,6 @@ void adc_startConversion(void){
 }
 
 void pwm_Initalize(void){
-       /*
-       P1DIR |= BIT6 | BIT7;
-       P1SEL0 |= BIT6 | BIT7;
-       P1SEL1 |= BIT6 | BIT7;
-       TA0CTL |= TASSEL_2 | ID_0 | MC_1;
-       TA0CCR0 = MAX_DUTY;
-       TA0CCTL1 |= OUTMOD_7;
-       TA0CCTL2 |= OUTMOD_7;
-    //   TA0CCR1 = DUTY;
-    //   TA0CCR2 = MAX_DUTY;
-     *
-     */
     /*
      *      PWM configuration:
      *      TB0.5 -> P2.1 -> PWM3 -> GATE2.2
@@ -97,9 +85,14 @@ void timerA_Initalize(void){
      *  clk = 32.768kHz
      *  20 Hz - interrupt
      */
-    TA0CTL |= TASSEL__ACLK | ID__1 | MC_1 | TAIE;
+    TA0CTL |= TASSEL__ACLK | ID__1 | TAIE;
     TA0CCR0 = 820;
 }
 
+inline void timerA_Stop(void){
+    TA0CTL &= ~MC_1;        // reset MC_1 bits
+}
 
-
+inline void timerA_Start(void){
+    TA0CTL |= MC_1;         //  up mode
+}

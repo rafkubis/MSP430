@@ -1,3 +1,10 @@
+/*
+ * main.c
+ *
+ *  Created on: 8 sty 2019
+ *      Author: rafal
+ */
+
 #include <msp430.h> 
 #include <string.h>
 #include <stdlib.h>
@@ -6,42 +13,34 @@
 #include "bridge_boost.h"
 
 
-/**
- * main.c
- */
-#define REGULATOR 1
-
-#define BOOST1_KP   6.5     *256
-#define BOOST1_KI   0.9     *256
+#define BOOST_KP   4.5     *256
+#define BOOST_KI   1.5     *256
 
 
-int itoa(int value, char *sp, int radix);
-unsigned int decodeData(char *data, unsigned int *pwm, unsigned int *pwm_max);
+
+unsigned int decodeData(char *data, unsigned int *param0, unsigned int *param1);
 
 BoostRect boostRect[2];
-volatile unsigned int adc_data[2];
+
 volatile unsigned int adc_new_data;
+volatile unsigned int regulator;
 
 void main(void)
 {
     PM5CTL0 = 0;    // unlock I/O pins
     WDTCTL = WDTPW | WDTHOLD;	// stop watchdog timer
 	clock_Initalize();
-	/*
-	 *      IO conFiguration
-	 *      P2.6 -> input pull down
-	 *      P2.6 <-> P2.7
-	 */
-//	P2DIR &= ~BIT6;
-//	P2REN |= BIT6;
-//	P2OUT &= ~BIT6;
+
 
 	usart_init();
 
 	adc_new_data = 0;
+
+
 	adc_Initalize();
 	timerA_Initalize();
 	pwm_Initalize();
+
 	/*
 	 *      External IO interrupt config
 	 *          SIGN1 -> P2.0
@@ -60,11 +59,11 @@ void main(void)
     P3IE |= BIT2;       //  interrupt enable
 
 
-	P1DIR |= BIT0;
-	P1OUT |= BIT0;
-    P9DIR |= BIT7;
-    P9OUT |= BIT7;
-
+    /*
+     *      Bridgeless Boost Rectifier Structure config
+     *      pwm = 0 %
+     *      pwm frequency = 50 kHz
+     */
     boostRect[0].T1_pwm_register = &TB0CCR6;        // 2
     boostRect[0].T2_pwm_register = &TB0CCR3;
     boostRect[1].T1_pwm_register = &TB0CCR2;        // 1
@@ -72,55 +71,82 @@ void main(void)
     boostRect[0].pwm_register = &TB0CCR0;
     boostRect[1].pwm_register = &TB0CCR0;
     *(boostRect[0].pwm_register) = BOOSTRECT_PWM_MAX;
-    boostRect[0].pwm_max = BOOSTRECT_PWM_MAX;
-    boostRect[1].pwm_max = BOOSTRECT_PWM_MAX;
-    boostRect[0].pwm = 10;
-    boostRect[1].pwm = 10;
+    boostRect[0].pwm_freq_value = BOOSTRECT_PWM_MAX;
+    boostRect[1].pwm_freq_value = BOOSTRECT_PWM_MAX;
+    boostRect[0].pwm = 0;
+    boostRect[1].pwm = 0;
 
-    boostRect[0].regulator_Kp = BOOST1_KP;
-    boostRect[0].regulator_Ki = BOOST1_KI;
-    boostRect[0].oV_setpoint = 600;
-//    BoostRect_ChangePwmPrams(boostRect[0], PWM_DIV)
-//    BoostRect_PositiveSign(&boostRect[0]);
-//    BoostRect_PositiveSign(&boostRect[1]);
-  //  adc_startConversion();
+    boostRect[0].regulator_Kp = BOOST_KP;
+    boostRect[0].regulator_Ki = BOOST_KI;
+    boostRect[1].regulator_Kp = BOOST_KP;
+    boostRect[1].regulator_Ki = BOOST_KI;
+    boostRect[0].oV_setpoint = 0;
+    boostRect[1].oV_setpoint = 0;
+    boostRect[0].integral = 0;
+    boostRect[1].integral = 0;
+
+    regulator = 0;
 	__enable_interrupt();
 	__low_power_mode_4();
+
     volatile char data_buffer[128];
-    volatile unsigned int pwm, pwm_max, boost_num;
+    volatile unsigned int param0, param1, boost_num;
 	while(1){
 	    if(usart_rx_get_line(data_buffer) == 1){
-	        boost_num = decodeData(data_buffer, &pwm, &pwm_max);
-	        BoostRect_ChangePwmParams(&boostRect[boost_num-1], pwm, pwm_max);
+	        if(strstr(data_buffer, "REGULATOR") != NULL){
+	            regulator = 1;
+	            timerA_Start();
+	        }else if(strstr(data_buffer, "MANUAL") != NULL){
+	            regulator = 0;
+	            timerA_Stop();
+	        }
+	        boost_num = decodeData(data_buffer, &param0, &param1);
+	        if(boost_num != NULL){
+	            if(regulator == 1){
+	                BoostRect_RegulatorSetSetpoint(&boostRect[boost_num-1], param1);
+	                BoostRect_ChangePwmParams(&boostRect[boost_num-1], boostRect[boost_num-1].pwm, param0);
+	            }else if(regulator == 0){
+	                BoostRect_ChangePwmParams(&boostRect[boost_num-1], param1, param0);
+	            }
+	        }
 	        __low_power_mode_4();
 	    }
 
 	    if(adc_new_data == 1){
 	        adc_new_data = 0;
-	        BoostRect_ChangePwmParams(&boostRect[0], BoostRect_Regulator(&boostRect[0]), BOOSTRECT_PWM_MAX);
+	        BoostRect_ChangePwmParams(&boostRect[0], BoostRect_Regulator(&boostRect[0]), boostRect[0].pwm_freq_value);
+	        BoostRect_ChangePwmParams(&boostRect[1], BoostRect_Regulator(&boostRect[1]), boostRect[1].pwm_freq_value);
+	        __low_power_mode_4();
 	    }
 
 
 
 	}
 }
+
+
+
 /*
  *      ADC Start Conversion Interrupt
- *      20 Hz
+ *      40 Hz
  */
 #pragma vector=TIMER0_A1_VECTOR
 __interrupt void TimerA0_interrupt(void){
     adc_startConversion();
-    P9OUT ^= BIT7;
     TA0IV;
 }
+/*
+ *      ADC End of Conversion Interrupt
+ */
+
 #pragma vector=ADC12_VECTOR
 __interrupt void ADC_interrupt(void){
     boostRect[0].oV_actual = ADC12MEM0;
-    adc_data[1] = ADC12MEM1;
+    boostRect[1].oV_actual = ADC12MEM1;
     adc_new_data = 1;
     __low_power_mode_off_on_exit();
 }
+
 
 /*
  *      BOOST 2
@@ -166,6 +192,10 @@ __interrupt void Port3_interrupt(void){
 
 }
 
+/*
+ *      UART Interrupt
+ */
+
 #pragma vector=USCI_A1_VECTOR
 __interrupt void USART1_interrupt(void){
    if(UCA1IFG & UCTXIFG){
@@ -178,19 +208,19 @@ __interrupt void USART1_interrupt(void){
 }
 
 
-unsigned int decodeData(char *data, unsigned int *pwm, unsigned int *pwm_max){
+
+unsigned int decodeData(char *data, unsigned int *param0, unsigned int *param1){
     unsigned int boostNumber = 0;
     char *string_begin = NULL;
     char *string_end = NULL;
     char tmp_buffer[32];
-    unsigned int tmp_pwm, tmp_pwm_max;
+    unsigned int param0_tmp, param1_tmp;
     if(data == NULL){
         return 0;
     } else{
         string_begin =  strstr(data, "BOOST");
         string_end = strstr(data, "_");
         if(string_begin != NULL && string_end != NULL){
-//            string_end--;
             string_begin += strlen("BOOST");
             if((string_end - string_begin) < 3){
                 memcpy(tmp_buffer, string_begin, string_end - string_begin);
@@ -201,65 +231,26 @@ unsigned int decodeData(char *data, unsigned int *pwm, unsigned int *pwm_max){
                 if(string_end == NULL){
                     return NULL;
                 }
-  //              string_end--;
+
                 memcpy(tmp_buffer, string_begin, string_end - string_begin);
                 tmp_buffer[string_end - string_begin] = '\0';
-                tmp_pwm = atoi(tmp_buffer);
+                param0_tmp = atoi(tmp_buffer);
                 string_begin = ++string_end;
                 string_end = strstr(string_begin, "_");
                 if(string_end == NULL){
                     return NULL;
                 }
- //               string_end--;
+
                 memcpy(tmp_buffer, string_begin, string_end - string_begin);
                 tmp_buffer[string_end - string_begin] = '\0';
-                tmp_pwm_max = atoi(tmp_buffer);
+                param1_tmp = atoi(tmp_buffer);
             }
         } else {
             return NULL;
         }
     }
-    *pwm = tmp_pwm;
-    *pwm_max = tmp_pwm_max;
+    *param0 = param0_tmp;
+    *param1 = param1_tmp;
     return boostNumber;
 }
 
-// Yet, another good itoa implementation
-// returns: the length of the number string
-int itoa(int value, char *sp, int radix)
-{
-    char tmp[16];// be careful with the length of the buffer
-    char *tp = tmp;
-    int i;
-    unsigned v;
-
-    int sign = (radix == 10 && value < 0);
-    if (sign)
-        v = -value;
-    else
-        v = (unsigned)value;
-
-    while (v || tp == tmp)
-    {
-        i = v % radix;
-        v /= radix; // v/=radix uses less CPU clocks than v=v/radix does
-        if (i < 10)
-          *tp++ = i+'0';
-        else
-          *tp++ = i + 'a' - 10;
-    }
-
-    int len = tp - tmp;
-
-    if (sign)
-    {
-        *sp++ = '-';
-        len++;
-    }
-
-    while (tp > tmp)
-        *sp++ = *--tp;
-
-    *sp++ = '\0';
-    return len;
-}
